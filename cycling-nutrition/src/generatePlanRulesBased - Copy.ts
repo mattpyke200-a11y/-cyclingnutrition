@@ -7,14 +7,6 @@ export interface UserInputs {
   goals: 'weight-loss' | 'maintenance' | 'performance';
 }
 
-export interface ProductRecommendation {
-  name: string;
-  bottleSize: string;
-  perHour: number;
-  timing: string;
-  notes: string;
-}
-
 export interface NutritionPlan {
   calories: number;
   carbs: number;
@@ -23,7 +15,6 @@ export interface NutritionPlan {
   hydration: number;
   timing: string;
   foods: string[];
-  products: ProductRecommendation[];
 }
 
 export function generateNutritionPlan(inputs: UserInputs): NutritionPlan {
@@ -83,9 +74,6 @@ export function generateNutritionPlan(inputs: UserInputs): NutritionPlan {
   // Food recommendations based on macros
   const foods = recommendFoods(carbs, protein, fat, rideType);
 
-  // Product recommendations
-  const products = recommendProducts(rideDuration, rideType, carbs);
-
   return {
     calories: Math.round(adjustedCalories),
     carbs: Math.round(carbs),
@@ -94,7 +82,6 @@ export function generateNutritionPlan(inputs: UserInputs): NutritionPlan {
     hydration: Math.round(hydration),
     timing,
     foods,
-    products,
   };
 }
 
@@ -141,60 +128,4 @@ function recommendFoods(
   foods.push(`Electrolyte drink (${Math.round(carbs / 10)}g carbs)`);
 
   return foods;
-}
-
-function recommendProducts(
-  rideDuration: number,
-  rideType: string,
-  carbs: number
-): ProductRecommendation[] {
-  const products: ProductRecommendation[] = [];
-  const durationHours = rideDuration / 60;
-
-  // Pre-Fuel (ESN Pre-Fuel KOM) - 500ml bottle
-  if (rideDuration > 45) {
-    products.push({
-      name: 'ESN Pre-Fuel KOM',
-      bottleSize: '500ml',
-      perHour: 0,
-      timing: '1-2 hours before ride',
-      notes: `Take 1 bottle (500ml) pre-ride for energy boost. Non-caffeinated for use before morning rides.`,
-    });
-  }
-
-  // C30 (Neversecond C30) - 500ml bottle with 30g carbs
-  if (rideDuration >= 60) {
-    const c30PerHour = rideType === 'intense' ? 1.5 : rideType === 'endurance' ? 1 : 0.75;
-    const totalC30Bottles = Math.ceil(durationHours * c30PerHour);
-    
-    products.push({
-      name: 'Neversecond C30',
-      bottleSize: '500ml (30g carbs per bottle)',
-      perHour: Math.round(c30PerHour * 10) / 10,
-      timing: 'Every 40-50 minutes during ride',
-      notes: `Total needed: ${totalC30Bottles} bottles for ${Math.round(rideDuration)} min ride. Consume ${Math.round(c30PerHour * 500)}ml per hour (${Math.round(c30PerHour * 30)}g carbs/hour).`,
-    });
-  }
-
-  // Re-Fuel NICA (Recovery) - 500ml bottle
-  products.push({
-    name: 'ESN Re-Fuel NICA',
-    bottleSize: '500ml (recovery drink)',
-    perHour: 0,
-    timing: 'Within 30 minutes after ride',
-    notes: `Take 1 bottle (500ml) immediately post-ride for optimal recovery. ${Math.round(carbs * 0.5)}g carbs + ${Math.round(carbs * 0.2)}g protein recommended for recovery window.`,
-  });
-
-  // Additional hydration recommendation
-  if (rideDuration > 90) {
-    products.push({
-      name: 'Water + Electrolytes',
-      bottleSize: '500ml',
-      perHour: durationHours * 0.5,
-      timing: 'Between C30 feeds',
-      notes: `Alternate water with electrolytes to stay hydrated. ${Math.round(durationHours * 250)}ml per hour (one 500ml bottle every 2 hours).`,
-    });
-  }
-
-  return products;
 }

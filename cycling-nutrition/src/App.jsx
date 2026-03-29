@@ -221,23 +221,26 @@ export default function App() {
             {
               timing: "Pre-ride",
               items: [
-                { product: "Pre-Fuel", instruction: generatedPlan.timing }
+                { product: "Nutrition", instruction: generatedPlan.products.find(p => p.name.includes('Pre-Fuel'))?.notes || 'Light meal 2-3 hours before' }
               ]
             },
             {
               timing: "During",
-              items: [
-                { product: "Sports Drink", instruction: `${Math.round(generatedPlan.hydration / 7)}ml every 30 mins` }
-              ]
+              items: generatedPlan.products
+                .filter(p => !p.name.includes('Pre-Fuel') && !p.name.includes('Re-Fuel'))
+                .map(p => ({
+                  product: p.name,
+                  instruction: `${p.perHour ? `${p.perHour} bottle(s)/hour - ` : ''}${p.bottleSize}. ${p.notes}`
+                }))
             },
             {
               timing: "Post-ride",
               items: [
-                { product: "Recovery", instruction: `${generatedPlan.carbs}g carbs + ${generatedPlan.protein}g protein within 30 mins` }
+                { product: "Recovery", instruction: generatedPlan.products.find(p => p.name.includes('Re-Fuel'))?.notes || 'Recovery meal within 30 mins' }
               ]
             }
           ],
-          proTip: `Total: ${generatedPlan.calories} kcal - Carbs: ${generatedPlan.carbs}g | Protein: ${generatedPlan.protein}g | Fat: ${generatedPlan.fat}g`
+          proTip: `Total: ${generatedPlan.calories} kcal | Carbs: ${generatedPlan.carbs}g | Protein: ${generatedPlan.protein}g | Fat: ${generatedPlan.fat}g | Hydration: ${generatedPlan.hydration}ml`
         }))
       };
 
