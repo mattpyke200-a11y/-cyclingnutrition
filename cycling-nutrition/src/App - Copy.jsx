@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { GeneratePlan } from './GeneratePlan';
 
+function App() {
+  return (
+    <div>
+      {/* Your existing code */}
+      <GeneratePlan />
+    </div>
+  );
+}
+
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const RIDE_TYPES = ["Rest", "Easy Ride", "Moderate Ride", "Hard / Intervals", "Velodrome", "Crit Race", "Road Race", "Gran Fondo"];
 const PRODUCTS = [
