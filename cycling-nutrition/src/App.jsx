@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GeneratePlan } from './components/GeneratePlan';
+import { GeneratePlan } from './GeneratePlan';
 
 function App() {
   return (
