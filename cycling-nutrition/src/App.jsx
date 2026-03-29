@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GeneratePlan } from './GeneratePlan';
+import { generateNutritionPlan } from './generatePlanRulesBased';
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const RIDE_TYPES = ["Rest", "Easy Ride", "Moderate Ride", "Hard / Intervals", "Velodrome", "Crit Race", "Road Race", "Gran Fondo"];
@@ -194,19 +194,54 @@ export default function App() {
     setPlan(null);
     setView("plan");
 
-    const weekSummary = week.map(d =>
-      `${d.day}: ${d.type}${d.duration > 0 ? `, ${d.duration} min` : ""}${d.races > 0 ? `, ${d.races} race(s)` : ""}${d.notes ? ` (${d.notes})` : ""}`
-    ).join("\n");
-
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekSummary }),
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data = await res.json();
-      setPlan(data);
+      // Use rule-based generator instead of API
+      const rideType = week.reduce((s, d) => s + (d.duration || 0), 0) > 300 ? 'endurance' : 'moderate';
+      const totalDuration = week.reduce((s, d) => s + (d.duration || 0), 0);
+      const hasHardDays = week.some(d => ["Hard / Intervals", "Velodrome", "Crit Race"].includes(d.type));
+      
+      const inputs = {
+        rideType: hasHardDays ? 'intense' : rideType,
+        rideDuration: totalDuration,
+        bodyWeight: 75, // default, could be user input
+        goals: 'maintenance', // default, could be user input
+      };
+
+      const generatedPlan = generateNutritionPlan(inputs);
+
+      // Format the plan to match your UI structure
+      const formattedPlan = {
+        weekSummary: week.map(d =>
+          `${d.day}: ${d.type}${d.duration > 0 ? `, ${d.duration} min` : ""}${d.races > 0 ? `, ${d.races} race(s)` : ""}${d.notes ? ` (${d.notes})` : ""}`
+        ).join("\n"),
+        days: week.map((d, i) => ({
+          day: d.day,
+          rideType: d.type,
+          sections: [
+            {
+              timing: "Pre-ride",
+              items: [
+                { product: "Pre-Fuel", instruction: generatedPlan.timing }
+              ]
+            },
+            {
+              timing: "During",
+              items: [
+                { product: "Sports Drink", instruction: `${Math.round(generatedPlan.hydration / 7)}ml every 30 mins` }
+              ]
+            },
+            {
+              timing: "Post-ride",
+              items: [
+                { product: "Recovery", instruction: `${generatedPlan.carbs}g carbs + ${generatedPlan.protein}g protein within 30 mins` }
+              ]
+            }
+          ],
+          proTip: `Total: ${generatedPlan.calories} kcal - Carbs: ${generatedPlan.carbs}g | Protein: ${generatedPlan.protein}g | Fat: ${generatedPlan.fat}g`
+        }))
+      };
+
+      setPlan(formattedPlan);
     } catch (e) {
       setError(e.message || "Failed to generate plan. Please try again.");
     } finally {
