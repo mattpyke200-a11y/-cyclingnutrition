@@ -187,6 +187,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
   const [view,    setView]    = useState("input");
+  const [weight,  setWeight]  = useState(75);
 
   async function generatePlan() {
     setLoading(true);
@@ -203,8 +204,8 @@ export default function App() {
       const inputs = {
         rideType: hasHardDays ? 'intense' : rideType,
         rideDuration: totalDuration,
-        bodyWeight: 75, // default, could be user input
-        goals: 'maintenance', // default, could be user input
+        bodyWeight: weight,
+        goals: 'maintenance',
       };
 
       const generatedPlan = generateNutritionPlan(inputs);
@@ -296,6 +297,26 @@ export default function App() {
         {/* ── SCHEDULE VIEW ── */}
         {view === "input" && (
           <div style={{ animation: "fadeUp 0.3s ease" }}>
+            {/* Rider Weight Input */}
+            <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "14px 16px", marginBottom: 20 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "#9CA3AF", textTransform: "uppercase", marginBottom: 8, display: "block" }}>Your Body Weight</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="number"
+                  value={weight}
+                  onChange={e => setWeight(parseFloat(e.target.value) || 75)}
+                  min="40"
+                  max="150"
+                  style={{
+                    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 8, color: "#E8F44A", fontSize: 14, padding: "8px 12px",
+                    outline: "none", fontFamily: "inherit", fontWeight: 700, width: 80
+                  }}
+                />
+                <span style={{ color: "#D1D5DB", fontSize: 13 }}>kg</span>
+              </div>
+            </div>
+
             {/* Stats */}
             <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
               {[
