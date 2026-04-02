@@ -523,7 +523,7 @@ export default function App() {
               <span style={{ fontSize:15 }}>🍶</span>
               <span style={{ fontSize:13, color:"#9CA3AF" }}>
                 <span style={{ color:"#F9FAFB", fontWeight:600 }}>2 × {BOTTLE_SPECS[bottleSize].label} C30</span> on the bike ·
-                <span style={{ color:"#A855F7", fontWeight:600" }}> gels</span> and
+                <span style={{ color:"#A855F7", fontWeight:600 }}> gels</span> and
                 <span style={{ color:"#EF4444", fontWeight:600 }}> bars</span> in the jersey pocket
               </span>
             </div>
