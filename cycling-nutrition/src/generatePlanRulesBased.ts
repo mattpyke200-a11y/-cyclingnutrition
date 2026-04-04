@@ -48,6 +48,8 @@ export interface BottleLoad {
   sizeMl: number;
   carbsFromBottles: number;
   refillsNeeded: number;
+  c30Refills: number;      // refills where C30 is added (carbs still needed)
+  waterOnlyRefills: number;// refills that are plain water (carbs already covered)
   note: string;
 }
 
@@ -146,21 +148,36 @@ function buildFueling(day: DayInput, sizeOz: BottleSizeOz, scoopsPerBottle = 1):
     refillsNeeded = Math.max(0, day.races - 1);
   } else {
     totalMins = day.duration;
-    // Feed-zone/café refill every 90 min for longer rides
-    refillsNeeded = Math.max(0, Math.floor(day.duration / 90) - 1);
+    // Hydration refill threshold is bottle-size-aware:
+    //   22oz (651ml × 2 = 1302ml) → refill every ~90 min after first fill
+    //   26oz (769ml × 2 = 1538ml) → refill every ~105 min after first fill
+    const refillThresholdMins = sizeOz === 26 ? 105 : 90;
+    refillsNeeded = Math.max(0, Math.floor(day.duration / refillThresholdMins) - 1);
   }
 
   const totalCarbsNeeded = Math.round((totalMins / 60) * rate);
 
-  // ── Bottles (always 2 × C30) ──────────────────────────────────────────────
-  const fills            = 1 + refillsNeeded;
-  const carbsFromBottles = MAX_BOTTLES * carbsPerBottle * fills;
+  // ── Bottles: separate hydration refills from C30 refills ─────────────────
+  // First fill always has C30. Subsequent refills only get C30 if there are
+  // still carbs to cover — otherwise it's a plain water refill.
+  const carbsFromFirstFill  = MAX_BOTTLES * carbsPerBottle;
+  const carbsGapAfterFirst  = Math.max(0, totalCarbsNeeded - carbsFromFirstFill);
+  // Only add C30 to a refill if the gap is larger than one bar (35g) —
+  // a small shortfall is cheaper to close with a bar from the pocket.
+  const c30Refills          = carbsGapAfterFirst > BAR_CARBS
+    ? Math.min(refillsNeeded, Math.ceil(carbsGapAfterFirst / (MAX_BOTTLES * carbsPerBottle)))
+    : 0;
+  const waterOnlyRefills    = refillsNeeded - c30Refills;
+  const carbsFromBottles    = carbsFromFirstFill + c30Refills * MAX_BOTTLES * carbsPerBottle;
 
   let bottleNote = "";
   if (isRace(day.type) && day.races > 0) {
     bottleNote = `2 × C30 (${carbsPerBottle}g each · ${scoopLabel}) in both ${BOTTLE_SPECS[sizeOz].label} bottles. ${refillsNeeded > 0 ? `Refill at the venue between races (${refillsNeeded} refill${refillsNeeded > 1 ? "s" : ""}).` : "Start each race with full bottles."}`;
   } else if (refillsNeeded > 0) {
-    bottleNote = `2 × ${BOTTLE_SPECS[sizeOz].label} C30 bottles — ${scoopLabel} each (${carbsPerBottle}g/bottle). Refill both ${refillsNeeded}× during the ride (feed zone or café stop). Each fill = ${MAX_BOTTLES * carbsPerBottle}g carbs.`;
+    const c30Part   = c30Refills > 0   ? `${c30Refills} C30 refill${c30Refills > 1 ? "s" : ""} (${scoopLabel} each, ${MAX_BOTTLES * carbsPerBottle}g carbs/fill)` : "";
+    const waterPart = waterOnlyRefills > 0 ? `${waterOnlyRefills} plain water refill${waterOnlyRefills > 1 ? "s" : ""} — your carb needs are covered by the first fill` : "";
+    const refillDesc = [c30Part, waterPart].filter(Boolean).join(" + ");
+    bottleNote = `2 × ${BOTTLE_SPECS[sizeOz].label} C30 bottles — ${scoopLabel} each (${carbsPerBottle}g/bottle). ${refillDesc}. Stop at a café or feed zone to top up fluid.`;
   } else {
     bottleNote = `2 × ${BOTTLE_SPECS[sizeOz].label} bottles, ${scoopLabel} C30 each = ${carbsFromBottles}g carbs total. Sip consistently every 10–15 min.`;
   }
@@ -171,6 +188,8 @@ function buildFueling(day: DayInput, sizeOz: BottleSizeOz, scoopsPerBottle = 1):
     sizeMl,
     carbsFromBottles,
     refillsNeeded,
+    c30Refills,
+    waterOnlyRefills,
     note: bottleNote,
   };
 

@@ -223,26 +223,37 @@ function FuelingVisual({ fueling, sizeOz, scoopsPerBottle }) {
 
       {/* 3-slot layout: Bottle 1 | Bottle 2 | Pocket */}
       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-        {[1, 2].map(b => (
-          <div key={b} style={{ flex:"1 1 80px", minWidth:80,
-            background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.2)",
-            borderRadius:10, padding:"10px 12px" }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"#22C55E",
-              letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:4 }}>Bottle {b}</div>
-            <div style={{ fontSize:13, fontWeight:600, color:th.text }}>C30 Citrus</div>
-            <div style={{ fontSize:11, color:th.dim, marginTop:2 }}>
-              {sizeLabel} · {scoopsPerBottle} scoop{scoopsPerBottle > 1 ? "s" : ""}
-            </div>
-            <div style={{ fontSize:12, fontWeight:700, color:"#22C55E", marginTop:4 }}>
-              +{carbsPerBottle}g carbs
-            </div>
-            {fueling.bottles.refillsNeeded > 0 && (
-              <div style={{ fontSize:10, color:"#22C55E", marginTop:3, opacity:0.8 }}>
-                ↺ refill ×{fueling.bottles.refillsNeeded}
+        {[1, 2].map(b => {
+          const rf = fueling.bottles.refillsNeeded;
+          // c30Refills is on the fueling object when the engine sets it; fall back to rf
+          const c30rf   = fueling.bottles.c30Refills   ?? (rf > 0 ? rf : 0);
+          const waterrf = fueling.bottles.waterOnlyRefills ?? 0;
+          return (
+            <div key={b} style={{ flex:"1 1 80px", minWidth:80,
+              background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.2)",
+              borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"#22C55E",
+                letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:4 }}>Bottle {b}</div>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>C30 Citrus</div>
+              <div style={{ fontSize:11, color:th.dim, marginTop:2 }}>
+                {sizeLabel} · {scoopsPerBottle} scoop{scoopsPerBottle > 1 ? "s" : ""}
               </div>
-            )}
-          </div>
-        ))}
+              <div style={{ fontSize:12, fontWeight:700, color:"#22C55E", marginTop:4 }}>
+                +{carbsPerBottle}g carbs
+              </div>
+              {c30rf > 0 && (
+                <div style={{ fontSize:10, color:"#22C55E", marginTop:3 }}>
+                  ↺ +C30 ×{c30rf}
+                </div>
+              )}
+              {waterrf > 0 && (
+                <div style={{ fontSize:10, color:"#3B82F6", marginTop:2 }}>
+                  💧 water refill ×{waterrf}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {p && (p.gels > 0 || p.bars > 0) && (
           <div style={{ flex:"1 1 80px", minWidth:80, background:th.input,
