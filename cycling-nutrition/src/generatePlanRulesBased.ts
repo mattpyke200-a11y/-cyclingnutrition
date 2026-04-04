@@ -26,6 +26,7 @@ export interface DayInput {
   duration: number;
   notes: string;
   races: number;
+  scoops: number;   // C30 scoops per bottle for this day (1–3)
 }
 
 // ── Product specs (exported so UI can reference them) ─────────────────────────
@@ -127,13 +128,14 @@ function pocketSplit(type: string): GelBarSplit {
 
 // ── Fueling calculator ────────────────────────────────────────────────────────
 
-function buildFueling(day: DayInput, sizeOz: BottleSizeOz, scoopsPerBottle = 1): FuelingPlan | null {
+function buildFueling(day: DayInput, sizeOz: BottleSizeOz): FuelingPlan | null {
   const rate = carbRatePerHour(day.type);
   if (rate === 0 || day.type === "Rest" || day.type === "Easy Ride") return null;
 
   const sizeMl         = BOTTLE_SPECS[sizeOz].ml;
-  const carbsPerBottle = C30_CARBS_PER_BOTTLE * scoopsPerBottle; // e.g. 30 × 2 = 60g
-  const scoopLabel     = `${scoopsPerBottle} scoop${scoopsPerBottle > 1 ? "s" : ""}`;
+  const scoopsPerBottle = Math.max(1, Math.min(3, day.scoops || 1));
+  const carbsPerBottle  = C30_CARBS_PER_BOTTLE * scoopsPerBottle; // e.g. 30 × 2 = 60g
+  const scoopLabel      = `${scoopsPerBottle} scoop${scoopsPerBottle > 1 ? "s" : ""}`;
 
   // ── Total minutes (race days include warm-up + gaps) ──────────────────────
   let totalMins: number;
@@ -366,7 +368,12 @@ function buildProTip(day: DayInput, fueling: FuelingPlan | null): string {
 
 function buildShopping(days: DayPlan[]): { items: ShoppingItem[]; totals: WeekPlan["weekTotals"] } {
   const totals = {
-    c30Scoops: days.reduce((s, d) => s + (d.fueling?.bottles ? d.fueling.bottles.count * (1 + d.fueling.bottles.refillsNeeded) : 0), 0),
+    // carbsFromBottles = count × carbsPerBottle × c30Fills; divide by 30 to get total scoops
+    c30Scoops: days.reduce((s, d) => {
+      if (!d.fueling?.bottles) return s;
+      const b = d.fueling.bottles;
+      return s + Math.round(b.carbsFromBottles / C30_CARBS_PER_BOTTLE);
+    }, 0),
     gels:      days.reduce((s, d) => s + (d.fueling?.pocket?.gels ?? 0), 0),
     bars:      days.reduce((s, d) => s + (d.fueling?.pocket?.bars ?? 0), 0),
     preFuel:   days.filter(d => d.products.includes("prefuel")).length,
@@ -417,8 +424,8 @@ function buildWeekSummary(inputs: DayInput[], days: DayPlan[], sizeOz: BottleSiz
 
 // ── Day plan ──────────────────────────────────────────────────────────────────
 
-function buildDayPlan(day: DayInput, kg: number, hot: boolean, sizeOz: BottleSizeOz, scoopsPerBottle = 1): DayPlan {
-  const fueling   = buildFueling(day, sizeOz, scoopsPerBottle);
+function buildDayPlan(day: DayInput, kg: number, hot: boolean, sizeOz: BottleSizeOz): DayPlan {
+  const fueling   = buildFueling(day, sizeOz);
   const hydration = calcHydration(day, kg, hot);
   const calories  = calcCalories(day, kg);
   const sections: PlanSection[] = [];
@@ -453,9 +460,8 @@ export function generateWeekPlan(
   bodyWeightKg  = 75,
   hotWeather    = false,
   bottleSizeOz: BottleSizeOz = 22,
-  scoopsPerBottle = 1,
 ): WeekPlan {
-  const days = inputs.map(d => buildDayPlan(d, bodyWeightKg, hotWeather, bottleSizeOz, scoopsPerBottle));
+  const days = inputs.map(d => buildDayPlan(d, bodyWeightKg, hotWeather, bottleSizeOz));
   const { items, totals } = buildShopping(days);
   return {
     weekSummary: buildWeekSummary(inputs, days, bottleSizeOz),

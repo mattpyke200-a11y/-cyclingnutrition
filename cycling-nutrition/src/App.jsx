@@ -24,15 +24,25 @@ const RIDE_COLORS = {
   "Crit Race":"#F97316","Road Race":"#F97316","Gran Fondo":"#A855F7",
 };
 
-const DEFAULT_WEEK = DAYS.map((day, i) => ({
-  day,
-  type:     i===0?"Rest":i===1?"Hard / Intervals":i===2?"Easy Ride":i===4?"Easy Ride":i>=5?"Crit Race":"Moderate Ride",
-  duration: i===0?0:i===1?90:i===2?60:i>=5?50:75,
-  notes:    i===1?"Velodrome or fast group ride":i===5?"2-3 back-to-back crits":"",
-  races:    i>=5?2:0,
-}));
+// Sensible default scoops by ride type
+const DEFAULT_SCOOPS = {
+  "Rest":0, "Easy Ride":0, "Moderate Ride":1,
+  "Hard / Intervals":2, "Velodrome":2,
+  "Crit Race":2, "Road Race":2, "Gran Fondo":2,
+};
 
-const STORAGE_KEY = "cyclenutri_v6";
+const DEFAULT_WEEK = DAYS.map((day, i) => {
+  const type = i===0?"Rest":i===1?"Hard / Intervals":i===2?"Easy Ride":i===4?"Easy Ride":i>=5?"Crit Race":"Moderate Ride";
+  return {
+    day, type,
+    duration: i===0?0:i===1?90:i===2?60:i>=5?50:75,
+    notes:    i===1?"Velodrome or fast group ride":i===5?"2-3 back-to-back crits":"",
+    races:    i>=5?2:0,
+    scoops:   DEFAULT_SCOOPS[type] ?? 1,
+  };
+});
+
+const STORAGE_KEY = "cyclenutri_v7";
 function loadSaved() {
   try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
 }
@@ -133,14 +143,36 @@ function DayCard({ entry, onChange }) {
       </div>
 
       <select value={entry.type}
-        onChange={e => onChange({ ...entry, type:e.target.value,
-          races: e.target.value.includes("Race") ? Math.max(entry.races || 1, 1) : 0 })}
+        onChange={e => {
+          const newType = e.target.value;
+          onChange({ ...entry, type:newType,
+            races: newType.includes("Race") ? Math.max(entry.races || 1, 1) : 0,
+            scoops: DEFAULT_SCOOPS[newType] ?? 1,
+          });
+        }}
         style={{ width:"100%", background:th.selectBg, border:`1px solid ${th.inputBorder}`,
           borderRadius:8, color:th.text, fontSize:13, padding:"7px 10px", marginBottom:10,
           outline:"none", cursor:"pointer", fontFamily:"inherit", appearance:"none" }}
       >
         {RIDE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
       </select>
+
+      {!isRest && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+          <span style={{ fontSize:11, color:th.muted, flexShrink:0 }}>C30 scoops:</span>
+          {[1, 2, 3].map(n => (
+            <button key={n} onClick={() => onChange({ ...entry, scoops:n })}
+              style={{ width:26, height:26, borderRadius:6, border:"none", cursor:"pointer",
+                background: (entry.scoops||1) === n ? "#22C55E" : th.input,
+                color:      (entry.scoops||1) === n ? "#fff"    : th.muted,
+                fontSize:12, fontWeight:700, transition:"all 0.15s", flexShrink:0 }}
+            >{n}</button>
+          ))}
+          <span style={{ fontSize:10, color:th.dim }}>
+            {(entry.scoops||1) * CARBS_PER_SCOOP * 2}g liquid carbs
+          </span>
+        </div>
+      )}
 
       {isRace && (
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
@@ -168,12 +200,15 @@ function DayCard({ entry, onChange }) {
 
 // ─── FuelingVisual ────────────────────────────────────────────────────────────
 
-function FuelingVisual({ fueling, sizeOz, scoopsPerBottle }) {
+function FuelingVisual({ fueling, sizeOz }) {
   const th = useT();
   if (!fueling?.bottles) return null;
 
   const sizeLabel      = BOTTLE_SPECS[sizeOz].label;
-  const carbsPerBottle = scoopsPerBottle * CARBS_PER_SCOOP;
+  const fills          = 1 + (fueling.bottles.c30Refills || 0) + (fueling.bottles.waterOnlyRefills || 0);
+  // Derive scoops from what the engine actually computed
+  const carbsPerBottle = Math.round(fueling.bottles.carbsFromBottles / (2 * fills));
+  const scoopsPerBottle = Math.round(carbsPerBottle / CARBS_PER_SCOOP) || 1;
   const p              = fueling.pocket;
   const totalCarbs     = fueling.carbsFromLiquid + fueling.carbsFromSolid;
 
@@ -316,7 +351,7 @@ function PlanSection({ section }) {
 
 // ─── PlanCard ─────────────────────────────────────────────────────────────────
 
-function PlanCard({ plan, bottleSizeOz, scoopsPerBottle }) {
+function PlanCard({ plan, bottleSizeOz }) {
   const th    = useT();
   const w     = useWindowWidth();
   const [open, setOpen] = useState(false);
@@ -381,7 +416,7 @@ function PlanCard({ plan, bottleSizeOz, scoopsPerBottle }) {
       {open && (
         <div style={{ padding: w < 480 ? "4px 14px 16px" : "4px 20px 20px",
           borderTop:`1px solid ${th.divider}` }}>
-          <FuelingVisual fueling={f} sizeOz={bottleSizeOz} scoopsPerBottle={scoopsPerBottle} />
+          <FuelingVisual fueling={f} sizeOz={bottleSizeOz} />
 
           {plan.hydration > 0 && (
             <div style={{ display:"flex", alignItems:"center", gap:8,
@@ -455,7 +490,6 @@ export default function App() {
   const [weight,         setWeight]         = useState(saved?.weight         ?? 75);
   const [hotWeather,     setHotWeather]     = useState(saved?.hotWeather     ?? false);
   const [bottleSize,     setBottleSize]     = useState(saved?.bottleSize     ?? 22);
-  const [scoopsPerBottle,setScoopsPerBottle]= useState(saved?.scoopsPerBottle ?? 1);
   const [plan,           setPlan]           = useState(null);
   const [view,           setView]           = useState("input");
 
@@ -464,22 +498,22 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY,
-        JSON.stringify({ dark, week, weight, hotWeather, bottleSize, scoopsPerBottle }));
+        JSON.stringify({ dark, week, weight, hotWeather, bottleSize }));
     } catch {}
-  }, [dark, week, weight, hotWeather, bottleSize, scoopsPerBottle]);
+  }, [dark, week, weight, hotWeather, bottleSize]);
 
   function generatePlan() {
     // scoopsPerBottle is now handled inside the rules engine — no post-processing needed
-    const p = generateWeekPlan(week, weight, hotWeather, bottleSize, scoopsPerBottle);
+    const p = generateWeekPlan(week, weight, hotWeather, bottleSize);
     setPlan(p);
     setView("plan");
   }
 
   function applyRaceWeek() {
     setWeek(w => w.map((d, i) => {
-      if (i === 4) return { ...d, type:"Easy Ride",  duration:45, notes:"Pre-race spin", races:0 };
-      if (i === 5) return { ...d, type:"Crit Race",  duration:50, notes:"Race day",      races:2 };
-      if (i === 6) return { ...d, type:"Crit Race",  duration:50, notes:"Race day",      races:2 };
+      if (i === 4) return { ...d, type:"Easy Ride",  duration:45, notes:"Pre-race spin", races:0, scoops:1 };
+      if (i === 5) return { ...d, type:"Crit Race",  duration:50, notes:"Race day",      races:2, scoops:2 };
+      if (i === 6) return { ...d, type:"Crit Race",  duration:50, notes:"Race day",      races:2, scoops:2 };
       return d;
     }));
   }
@@ -599,27 +633,6 @@ export default function App() {
                             color:      bottleSize === oz ? "#111113" : th.muted }}
                         >{BOTTLE_SPECS[oz].label}</button>
                       ))}
-                    </div>
-                  </div>
-
-                  {/* Scoops per bottle — NEW */}
-                  <div>
-                    <div style={{ fontSize:11, color:th.dim, marginBottom:6 }}>
-                      C30 scoops / bottle
-                    </div>
-                    <div style={{ display:"flex", gap:6 }}>
-                      {[1, 2, 3].map(n => (
-                        <button key={n} onClick={() => setScoopsPerBottle(n)}
-                          style={{ width:40, height:34, borderRadius:8, border:"none",
-                            cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:700,
-                            transition:"all 0.15s",
-                            background: scoopsPerBottle === n ? "#22C55E" : th.input,
-                            color:      scoopsPerBottle === n ? "#fff" : th.muted }}
-                        >{n}</button>
-                      ))}
-                    </div>
-                    <div style={{ fontSize:10, color:th.dim, marginTop:4 }}>
-                      {scoopsPerBottle * CARBS_PER_SCOOP * 2}g carbs from 2 bottles
                     </div>
                   </div>
 
@@ -749,7 +762,7 @@ export default function App() {
                 <span style={{ fontSize:13, color:th.muted }}>
                   <span style={{ color:th.text, fontWeight:600 }}>
                     2 × {BOTTLE_SPECS[bottleSize].label} C30
-                  </span> ({scoopsPerBottle} scoop{scoopsPerBottle > 1 ? "s" : ""}/bottle = {scoopsPerBottle * CARBS_PER_SCOOP}g each) ·
+                  </span> — scoops set per day ·
                   <span style={{ color:"#A855F7", fontWeight:600 }}> gels</span> and
                   <span style={{ color:"#EF4444", fontWeight:600 }}> bars</span> in the jersey pocket
                 </span>
@@ -767,7 +780,7 @@ export default function App() {
               </div>
 
               {plan.days?.map((d, i) => (
-                <PlanCard key={i} plan={d} bottleSizeOz={bottleSize} scoopsPerBottle={scoopsPerBottle} />
+                <PlanCard key={i} plan={d} bottleSizeOz={bottleSize} />
               ))}
 
               <ShoppingList shopping={plan.shopping} />
