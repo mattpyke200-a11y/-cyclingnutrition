@@ -32,7 +32,7 @@ const DEFAULT_WEEK = DAYS.map((day, i) => ({
   races:    i>=5?2:0,
 }));
 
-const STORAGE_KEY = "cyclenutri_v5";
+const STORAGE_KEY = "cyclenutri_v6";
 function loadSaved() {
   try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
 }
@@ -455,7 +455,7 @@ export default function App() {
   const [weight,         setWeight]         = useState(saved?.weight         ?? 75);
   const [hotWeather,     setHotWeather]     = useState(saved?.hotWeather     ?? false);
   const [bottleSize,     setBottleSize]     = useState(saved?.bottleSize     ?? 22);
-  const [scoopsPerBottle,setScoopsPerBottle]= useState(saved?.scoopsPerBottle ?? 2);
+  const [scoopsPerBottle,setScoopsPerBottle]= useState(saved?.scoopsPerBottle ?? 1);
   const [plan,           setPlan]           = useState(null);
   const [view,           setView]           = useState("input");
 
