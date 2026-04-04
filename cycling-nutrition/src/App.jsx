@@ -2,8 +2,6 @@ import { useState, useEffect, createContext, useContext } from "react";
 import {
   generateWeekPlan,
   BOTTLE_SPECS,
-  GEL_CARBS,
-  BAR_CARBS,
 } from "./generatePlanRulesBased";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -24,13 +22,6 @@ const RIDE_COLORS = {
   "Rest":"#6B7280","Easy Ride":"#22C55E","Moderate Ride":"#3B82F6",
   "Hard / Intervals":"#EF4444","Velodrome":"#EF4444",
   "Crit Race":"#F97316","Road Race":"#F97316","Gran Fondo":"#A855F7",
-};
-
-// Durations the rules-based engine was calibrated against.
-// Used to scale carb needs proportionally when actual duration differs.
-const REFERENCE_DURATIONS = {
-  "Easy Ride":60, "Moderate Ride":75, "Hard / Intervals":90,
-  "Velodrome":90, "Crit Race":50, "Road Race":90, "Gran Fondo":180,
 };
 
 const DEFAULT_WEEK = DAYS.map((day, i) => ({
@@ -80,96 +71,6 @@ function useWindowWidth() {
     return () => window.removeEventListener("resize", h);
   }, []);
   return w;
-}
-
-// ─── Plan post-processors ─────────────────────────────────────────────────────
-
-// Fix: same carb output for different durations of the same ride type.
-// Scales totalCarbsNeeded (and pocket items) proportionally to actual duration.
-function scalePlanByDurations(plan, week) {
-  if (!plan?.days) return plan;
-  const GC = GEL_CARBS || 50;
-  const BC = BAR_CARBS  || 35;
-
-  const scaledDays = plan.days.map((day, i) => {
-    const entry = week[i];
-    if (!day.fueling || entry.type === "Rest") return day;
-    const refDur = REFERENCE_DURATIONS[entry.type];
-    if (!refDur || Math.abs(entry.duration / refDur - 1) < 0.05) return day;
-
-    const f = day.fueling;
-    const newCarbsNeeded = Math.round(f.totalCarbsNeeded * (entry.duration / refDur));
-    const solidNeeded    = Math.max(0, newCarbsNeeded - f.carbsFromLiquid);
-    const gels           = Math.min(4, Math.round(solidNeeded / GC));
-    const barsCarbs      = Math.max(0, solidNeeded - gels * GC);
-    const bars           = barsCarbs > 0 ? Math.ceil(barsCarbs / BC) : 0;
-    const carbsFromGels  = gels * GC;
-    const carbsFromBars  = bars * BC;
-
-    return {
-      ...day,
-      fueling: {
-        ...f,
-        totalCarbsNeeded: newCarbsNeeded,
-        carbsFromSolid: carbsFromGels + carbsFromBars,
-        pocket: { gels, bars, carbsFromGels, carbsFromBars, totalCarbs: carbsFromGels + carbsFromBars },
-      },
-    };
-  });
-
-  return {
-    ...plan,
-    days: scaledDays,
-    weekTotals: {
-      ...plan.weekTotals,
-      gels: scaledDays.reduce((s, d) => s + (d.fueling?.pocket?.gels || 0), 0),
-      bars: scaledDays.reduce((s, d) => s + (d.fueling?.pocket?.bars || 0), 0),
-    },
-  };
-}
-
-// Fix: apply user-chosen scoops per bottle; rebalance pocket items accordingly.
-function applyBottleScoops(plan, scoopsPerBottle) {
-  if (!plan?.days) return plan;
-  const GC = GEL_CARBS || 50;
-  const BC = BAR_CARBS  || 35;
-  const carbsPerBottle = scoopsPerBottle * CARBS_PER_SCOOP;
-
-  const scaledDays = plan.days.map(day => {
-    if (!day.fueling?.bottles) return day;
-    const newCarbsFromLiquid = carbsPerBottle * 2;          // 2 bottles on bike
-    const solidNeeded        = Math.max(0, day.fueling.totalCarbsNeeded - newCarbsFromLiquid);
-    const gels               = Math.min(4, Math.round(solidNeeded / GC));
-    const barsCarbs          = Math.max(0, solidNeeded - gels * GC);
-    const bars               = barsCarbs > 0 ? Math.ceil(barsCarbs / BC) : 0;
-    const carbsFromGels      = gels * GC;
-    const carbsFromBars      = bars * BC;
-
-    return {
-      ...day,
-      fueling: {
-        ...day.fueling,
-        carbsFromLiquid: newCarbsFromLiquid,
-        carbsFromSolid: carbsFromGels + carbsFromBars,
-        pocket: { gels, bars, carbsFromGels, carbsFromBars, totalCarbs: carbsFromGels + carbsFromBars },
-      },
-    };
-  });
-
-  const totalC30Scoops = scaledDays.reduce(
-    (s, d) => s + (d.fueling?.bottles ? scoopsPerBottle * 2 : 0), 0
-  );
-
-  return {
-    ...plan,
-    days: scaledDays,
-    weekTotals: {
-      ...plan.weekTotals,
-      c30Scoops: totalC30Scoops,
-      gels: scaledDays.reduce((s, d) => s + (d.fueling?.pocket?.gels || 0), 0),
-      bars: scaledDays.reduce((s, d) => s + (d.fueling?.pocket?.bars || 0), 0),
-    },
-  };
 }
 
 // ─── Toggle ───────────────────────────────────────────────────────────────────
@@ -557,9 +458,8 @@ export default function App() {
   }, [dark, week, weight, hotWeather, bottleSize, scoopsPerBottle]);
 
   function generatePlan() {
-    let p = generateWeekPlan(week, weight, hotWeather, bottleSize);
-    p = scalePlanByDurations(p, week);   // fix: duration-proportional carb needs
-    p = applyBottleScoops(p, scoopsPerBottle); // fix: user-chosen scoop count
+    // scoopsPerBottle is now handled inside the rules engine — no post-processing needed
+    const p = generateWeekPlan(week, weight, hotWeather, bottleSize, scoopsPerBottle);
     setPlan(p);
     setView("plan");
   }

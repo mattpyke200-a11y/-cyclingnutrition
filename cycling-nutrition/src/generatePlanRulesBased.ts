@@ -125,11 +125,13 @@ function pocketSplit(type: string): GelBarSplit {
 
 // ── Fueling calculator ────────────────────────────────────────────────────────
 
-function buildFueling(day: DayInput, sizeOz: BottleSizeOz): FuelingPlan | null {
+function buildFueling(day: DayInput, sizeOz: BottleSizeOz, scoopsPerBottle = 1): FuelingPlan | null {
   const rate = carbRatePerHour(day.type);
   if (rate === 0 || day.type === "Rest" || day.type === "Easy Ride") return null;
 
-  const sizeMl = BOTTLE_SPECS[sizeOz].ml;
+  const sizeMl         = BOTTLE_SPECS[sizeOz].ml;
+  const carbsPerBottle = C30_CARBS_PER_BOTTLE * scoopsPerBottle; // e.g. 30 × 2 = 60g
+  const scoopLabel     = `${scoopsPerBottle} scoop${scoopsPerBottle > 1 ? "s" : ""}`;
 
   // ── Total minutes (race days include warm-up + gaps) ──────────────────────
   let totalMins: number;
@@ -152,15 +154,15 @@ function buildFueling(day: DayInput, sizeOz: BottleSizeOz): FuelingPlan | null {
 
   // ── Bottles (always 2 × C30) ──────────────────────────────────────────────
   const fills            = 1 + refillsNeeded;
-  const carbsFromBottles = MAX_BOTTLES * C30_CARBS_PER_BOTTLE * fills;
+  const carbsFromBottles = MAX_BOTTLES * carbsPerBottle * fills;
 
   let bottleNote = "";
   if (isRace(day.type) && day.races > 0) {
-    bottleNote = `2 × C30 (${C30_CARBS_PER_BOTTLE}g each) in both ${BOTTLE_SPECS[sizeOz].label} bottles. ${refillsNeeded > 0 ? `Refill at the venue between races (${refillsNeeded} refill${refillsNeeded > 1 ? "s" : ""}).` : "Start each race with full bottles."}`;
+    bottleNote = `2 × C30 (${carbsPerBottle}g each · ${scoopLabel}) in both ${BOTTLE_SPECS[sizeOz].label} bottles. ${refillsNeeded > 0 ? `Refill at the venue between races (${refillsNeeded} refill${refillsNeeded > 1 ? "s" : ""}).` : "Start each race with full bottles."}`;
   } else if (refillsNeeded > 0) {
-    bottleNote = `2 × ${BOTTLE_SPECS[sizeOz].label} C30 bottles — refill both ${refillsNeeded}× during the ride (feed zone or café stop). Each fill = ${MAX_BOTTLES * C30_CARBS_PER_BOTTLE}g carbs.`;
+    bottleNote = `2 × ${BOTTLE_SPECS[sizeOz].label} C30 bottles — ${scoopLabel} each (${carbsPerBottle}g/bottle). Refill both ${refillsNeeded}× during the ride (feed zone or café stop). Each fill = ${MAX_BOTTLES * carbsPerBottle}g carbs.`;
   } else {
-    bottleNote = `2 × ${BOTTLE_SPECS[sizeOz].label} bottles, 1 scoop C30 each = ${carbsFromBottles}g carbs total. Sip consistently every 10–15 min.`;
+    bottleNote = `2 × ${BOTTLE_SPECS[sizeOz].label} bottles, ${scoopLabel} C30 each = ${carbsFromBottles}g carbs total. Sip consistently every 10–15 min.`;
   }
 
   const bottleLoad: BottleLoad = {
@@ -247,16 +249,16 @@ function calcCalories(day: DayInput, kg: number): number {
 // ── Section builders ──────────────────────────────────────────────────────────
 
 function buildPreRide(day: DayInput): PlanSection | null {
-  if (!needsPre(day.type)) return null;
+  // User confirmed: pre-ride only on race days and Saturday morning rides
+  const wantsPreRide = isRace(day.type) || day.day === "Saturday";
+  if (!wantsPreRide || day.type === "Rest" || day.type === "Easy Ride") return null;
   let instruction = "";
-  if (day.type === "Moderate Ride")
-    instruction = "Mix 1 scoop in 300ml water · take 30–45 min before. Skip if the session is purely Z2 pace.";
-  else if (day.type === "Gran Fondo")
+  if (day.type === "Gran Fondo")
     instruction = "Mix 1 scoop in 400ml water · take 45 min before the start. Supports sustained energy and electrolytes over a long effort.";
   else if (isRace(day.type))
     instruction = "Mix 1 scoop in 350ml water · take 45–60 min before warm-up. Times the beta-alanine and electrolyte peak to your race start.";
   else
-    instruction = "Mix 1 scoop in 350ml water · take 40–50 min before. Beta-alanine helps buffer lactate during repeated hard efforts.";
+    instruction = "Mix 1 scoop in 350ml water · take 40–50 min before. Beta-alanine helps buffer lactate during hard Saturday efforts.";
   return { timing: "Pre-ride", items: [{ product: "ESN Pre-Fuel KOM (non-caffeinated)", instruction }] };
 }
 
@@ -396,8 +398,8 @@ function buildWeekSummary(inputs: DayInput[], days: DayPlan[], sizeOz: BottleSiz
 
 // ── Day plan ──────────────────────────────────────────────────────────────────
 
-function buildDayPlan(day: DayInput, kg: number, hot: boolean, sizeOz: BottleSizeOz): DayPlan {
-  const fueling   = buildFueling(day, sizeOz);
+function buildDayPlan(day: DayInput, kg: number, hot: boolean, sizeOz: BottleSizeOz, scoopsPerBottle = 1): DayPlan {
+  const fueling   = buildFueling(day, sizeOz, scoopsPerBottle);
   const hydration = calcHydration(day, kg, hot);
   const calories  = calcCalories(day, kg);
   const sections: PlanSection[] = [];
@@ -432,8 +434,9 @@ export function generateWeekPlan(
   bodyWeightKg  = 75,
   hotWeather    = false,
   bottleSizeOz: BottleSizeOz = 22,
+  scoopsPerBottle = 1,
 ): WeekPlan {
-  const days = inputs.map(d => buildDayPlan(d, bodyWeightKg, hotWeather, bottleSizeOz));
+  const days = inputs.map(d => buildDayPlan(d, bodyWeightKg, hotWeather, bottleSizeOz, scoopsPerBottle));
   const { items, totals } = buildShopping(days);
   return {
     weekSummary: buildWeekSummary(inputs, days, bottleSizeOz),
