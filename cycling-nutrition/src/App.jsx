@@ -721,6 +721,7 @@ function buildMealPlan({ rideType, rideCals, rideCarbs, rideDuration, weight, ag
       : isGF   ? `Endurance nutrition: sustain ${rideDuration}min effort + rebuild`
       : `Training day nutrition${hStr ? ` + ${strengthType || "strength"} session` : ""}`,
     totalMacros: { kcal: actualCals, carbsG: dailyCarbsFood, proteinG: dailyProt, fatG: dailyFat },
+    targetMacros: { proteinG: round5(dailyProt), carbsG: round5(dailyCarbsFood), fatG: round5(dailyFat) },
     optygenHP: { dose1, dose2 },
     meals,
     keyPrinciples: principles,
